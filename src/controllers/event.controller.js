@@ -1,67 +1,67 @@
-import { getEvent, resetEvent, updateEventUnsafe, connectDb } from '../models/orderModel.js';
+import { getEvent, resetEvent, updateEventUnsafe, connectDb } from '../models/eventModel.js';
 import { getOrders, resetOrders, createOrder, createOrderWithClient } from '../models/orderModel.js';
 
 function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-    }
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export async function getState(req, res) {
-    const event = await getEvent();
-    const orders = await getOrders();
+  const event = await getEvent();
+  const orders = await getOrders();
 
-res.json({
+  res.json({
     event,
     orders,
-});
+  });
 }
 
 export async function resetState(req, res) {
-await resetOrders();
-await resetEvent();
+  await resetOrders();
+  await resetEvent();
 
-res.json({
+  res.json({
     message: 'Systemet är återställt.',
-});
+  });
 }
 
 export async function buyUnsafe(req, res) {
-const event = await getEvent();
+  const event = await getEvent();
 
-if (event.tickets_left <= 0) {
+  if (event.tickets_left <= 0) {
     return res.status(409).json({
-    message: 'Slutsålt.',
+      message: 'Slutsålt.',
     });
-}
+  }
 
-await sleep(1000);
+  await sleep(1000);
 
-await updateEventUnsafe(event);
-await createOrder(event.id, 'unsafe');
+  await updateEventUnsafe(event);
+  await createOrder(event.id, 'unsafe');
 
-res.json({
+  res.json({
     message: 'Köp lyckades i osäker version.',
-});
+  });
 }
 
 export async function buySafe(req, res) {
-const client = await connectDb();
+  const client = await connectDb();
 
-try {
+  try {
     await client.query('begin');
 
     const updateResult = await client.query(`
-    update events
-    set tickets_left = tickets_left - 1
-    where id = 1
+      update events
+      set tickets_left = tickets_left - 1
+      where id = 1
         and tickets_left > 0
-    returning tickets_left
+      returning tickets_left
     `);
 
     if (updateResult.rowCount === 0) {
-    await client.query('rollback');
-    return res.status(409).json({
+      await client.query('rollback');
+      return res.status(409).json({
         message: 'Slutsålt.',
-    });
+      });
     }
 
     await sleep(1000);
@@ -71,14 +71,14 @@ try {
     await client.query('commit');
 
     res.json({
-    message: 'Köp lyckades i säker version.',
+      message: 'Köp lyckades i säker version.',
     });
-} catch (error) {
+  } catch (error) {
     await client.query('rollback');
     res.status(500).json({
-    message: 'Något gick fel.',
+      message: 'Något gick fel.',
     });
-} finally {
+  } finally {
     client.release();
-}
+  }
 }
